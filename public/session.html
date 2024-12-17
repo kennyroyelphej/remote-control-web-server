@@ -1,0 +1,114 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Host</title>
+    <script 
+        src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.js" 
+        integrity="sha512-8BHxHDLsOHx+flIrQ0DrZcea7MkHqRU5GbTHmbdzMRnAaoCIkZ97PqZcXJkKZckMMhqfoeaJE+DNUVuyoQsO3Q==" 
+        crossorigin="anonymous" 
+        referrerpolicy="no-referrer">
+    </script>
+</head>
+<body>
+    <h3>Session</h3>
+    <video id="remoteVideo" width="1920" height="1080"></video>
+</body>
+<script>
+    const sessionId = 'a91c981f-2ee8-4cdf-b497-389f3b11e399';
+    let target = null
+    const webSocket = new WebSocket('ws://192.168.1.12:3000');
+    const peerConnection = new RTCPeerConnection({
+        iceServers: [
+            // { urls: 'stun:stun.l.google.com:19302' },
+            {
+                urls: "stun:stun.relay.metered.ca:80",
+            },
+            {
+                urls: "turn:global.relay.metered.ca:80",
+                username: "69129037dd365448de9ce440",
+                credential: "I0l8v+eSlzpedOs7",
+            },
+            {
+                urls: "turn:global.relay.metered.ca:80?transport=tcp",
+                username: "69129037dd365448de9ce440",
+                credential: "I0l8v+eSlzpedOs7",
+            },
+            {
+                urls: "turn:global.relay.metered.ca:443",
+                username: "69129037dd365448de9ce440",
+                credential: "I0l8v+eSlzpedOs7",
+            },
+            {
+                urls: "turns:global.relay.metered.ca:443?transport=tcp",
+                username: "69129037dd365448de9ce440",
+                credential: "I0l8v+eSlzpedOs7",
+            },
+        ]
+    });
+    webSocket.onopen = () => {
+        webSocket.send(
+            JSON.stringify({
+                type: 'SignIn',
+                sessionId: sessionId
+            })
+        )
+    };
+    webSocket.onmessage = (event) => {
+        const message = JSON.parse(event.data)
+        switch(message.type) {
+            case "Offer":
+                handleOffer(message)
+                break
+            case "IceCandidates":
+                handleIceCandidates(message)
+                break
+            default: 
+                console.error("onMessage: INVALID TYPE ERROR")
+        }
+    }
+    peerConnection.ontrack = (event) => {
+        console.log("ontrack:", event)
+        const remoteVideo = document.getElementById('remoteVideo');
+        remoteVideo.srcObject = event.streams[0];
+    };
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate && target) {
+            webSocket.send(
+                JSON.stringify({
+                    type: 'IceCandidates',
+                    data: JSON.stringify(event.candidate),
+                    sessionId: sessionId,
+                    target: target,
+                })
+            )
+        }
+    };
+    async function handleOffer(offer) {
+        target = offer.sessionId
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({
+            type: "offer",
+            sdp: offer.data
+        }));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        webSocket.send(
+            JSON.stringify({
+                type: 'Answer',
+                data: answer,
+                sessionId: sessionId,
+                target: target,
+            })
+        )
+    }
+    function handleIceCandidates(iceCandidates) {
+        console.log(iceCandidates)
+        const iceCandidate = JSON.parse(iceCandidates.data)
+        peerConnection.addIceCandidate(new RTCIceCandidate({
+            candidate: iceCandidate.sdp,
+            sdpMLineIndex: iceCandidate.sdpMLineIndex,
+            sdpMid: iceCandidate.sdpMid
+        }))
+    }
+</script>
+</html>
