@@ -16,8 +16,18 @@
 </body>
 <script>
     const sessionId = 'a91c981f-2ee8-4cdf-b497-389f3b11e399';
-    let target = null
-    const webSocket = new WebSocket('ws://192.168.1.12:3000');
+    const target = 'a91c981f-2ee8-4cdf-b497-389f3b11e398'
+    const webSocket = new WebSocket('ws://192.168.1.14:3000');
+    const Types = {
+        SignIn: "SignIn",
+        RequestSession: "RequestSession",
+        Offer: "Offer",
+        Answer: "Answer",
+        IceCandidates: "IceCandidates",
+        StartSession: "StartSession",
+        SessionMeta: "SessionMeta",
+        EndSession: "EndSession",
+    };
     const peerConnection = new RTCPeerConnection({
         iceServers: [
             {
@@ -48,7 +58,7 @@
     webSocket.onopen = () => {
         webSocket.send(
             JSON.stringify({
-                type: 'SignIn',
+                type: Types.SignIn,
                 sessionId: sessionId
             })
         )
@@ -56,26 +66,31 @@
     webSocket.onmessage = (event) => {
         const message = JSON.parse(event.data)
         switch(message.type) {
-            case "Offer":
-                handleOffer(message)
-                break
-            case "IceCandidates":
-                handleIceCandidates(message)
-                break
-            default: 
-                console.error("onMessage: INVALID TYPE ERROR")
+            case Types.RequestSession:
+                createOffer()
+                break;
+            case Types.Answer:
+                handleAnswer(message)
+                break;
+            case Types.IceCandidates:
+                handleIceCandidate(message)
+                break;
+            case Types.SessionMeta:
+                setSessionMeta(message)
+                break;
         }
     }
     peerConnection.ontrack = (event) => {
-        console.log("ontrack:", event)
+        console.log("ON_TRACK:", event)
         const remoteVideo = document.getElementById('remoteVideo');
         remoteVideo.srcObject = event.streams[0];
     };
     peerConnection.onicecandidate = (event) => {
-        if (event.candidate && target) {
+        console.log("ON_ICECANDIDATE: ", event)
+        if (event.candidate) {
             webSocket.send(
                 JSON.stringify({
-                    type: 'IceCandidates',
+                    type: Types.IceCandidates,
                     data: JSON.stringify(event.candidate),
                     sessionId: sessionId,
                     target: target,
@@ -83,30 +98,42 @@
             )
         }
     };
-    async function handleOffer(offer) {
-        target = offer.sessionId
-        await peerConnection.setRemoteDescription(new RTCSessionDescription({
-            type: "offer",
-            sdp: offer.data
-        }));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+    const createOffer = async () => {
+        const offer = await peerConnection.createOffer();
+        peerConnection.setLocalDescription(offer);
+        console.log("OFFER: ", offer)
         webSocket.send(
             JSON.stringify({
-                type: 'Answer',
-                data: answer,
+                type: Types.Offer,
+                data: offer.sdp,
                 sessionId: sessionId,
                 target: target,
             })
         )
     }
-    function handleIceCandidates(iceCandidates) {
+    const handleAnswer = async (answer) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({
+            type: "answer",
+            sdp: answer.data
+        }));
+        console.log("ANSWER: ", answer.data)
+        webSocket.send(
+            JSON.stringify({
+                type: Types.StartSession,
+                sessionId: sessionId,
+                target: target,
+            })
+        )
+    }
+    const handleIceCandidate = (iceCandidates) => {
         const iceCandidate = JSON.parse(iceCandidates.data)
         peerConnection.addIceCandidate(new RTCIceCandidate({
             candidate: iceCandidate.sdp,
             sdpMLineIndex: iceCandidate.sdpMLineIndex,
             sdpMid: iceCandidate.sdpMid
         }))
+        console.log("ICE_CANDITATE: ", iceCandidates.data)
     }
+    const setSessionMeta = (metaData) => console.log("SESSION_META", metaData)
 </script>
 </html>

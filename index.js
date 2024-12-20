@@ -10,12 +10,13 @@ const router = express.Router();
 const users = []
 const Types = {
     SignIn: "SignIn",
-    StartStreaming: "StartStreaming",
-    UserFoundSuccessfully: "UserFoundSuccessfully",
+    RequestSession: "RequestSession",
     Offer: "Offer",
     Answer: "Answer",
     IceCandidates: "IceCandidates",
-    EndCall: "EndCall",
+    StartSession: "StartSession",
+    SessionMeta: "SessionMeta",
+    EndSession: "EndSession",
 }
 
 router.get('/session', (req, res, next) => {
@@ -42,18 +43,21 @@ webSocket.on('request', (req) => {
     const connection = req.accept();
     connection.on('message', (message) => {
         try {
-            const data = JSON.parse(message.utf8Data);
-            const currentUser = findUser(data.sessionId)
-            const userToReceive = findUser(data.target)
-            console.log("message:", data)
-            switch (data.type) {
+            const payload = JSON.parse(message.utf8Data);
+            const currentUser = findUser(payload.sessionId)
+            const userToReceive = findUser(payload.target)
+            console.log("message:", payload)
+            switch (payload.type) {
                 case Types.SignIn:
                     if (currentUser) return
-                    users.push({sessionId: data.sessionId, conn: connection, password: data.data})
+                    users.push({
+                        sessionId: payload.sessionId, 
+                        conn: connection
+                    })
                     break
-                case Types.StartStreaming :
+                case Types.RequestSession:
                     if (userToReceive) sendToConnection(userToReceive.conn, {
-                        type: Types.StartStreaming,
+                        type: Types.RequestSession,
                         sessionId: currentUser.sessionId,
                         target: userToReceive.sessionId
                     })
@@ -61,27 +65,46 @@ webSocket.on('request', (req) => {
                 case Types.Offer :
                     if (userToReceive) sendToConnection(userToReceive.conn, {
                         type: Types.Offer, 
-                        sessionId: data.sessionId,
+                        sessionId: payload.sessionId,
                         target: userToReceive.sessionId,
-                        data: data.data
+                        data: payload.data
                     })
                     break
                 case Types.Answer :
                     if (userToReceive) sendToConnection(userToReceive.conn, {
-                        type: Types.Answer, sessionId: data.sessionId, data: data.data
+                        type: Types.Answer,
+                        sessionId: payload.sessionId,
+                        data: payload.data
                     })
                     break
                 case Types.IceCandidates:
                     if (userToReceive) sendToConnection(userToReceive.conn, {
                         type: Types.IceCandidates, 
-                        sessionId: data.sessionId, 
+                        sessionId: payload.sessionId, 
                         target: userToReceive.sessionId, 
-                        data: data.data
+                        data: payload.data
                     })
                     break
-                case Types.EndCall:
+                case Types.StartSession :
                     if (userToReceive) sendToConnection(userToReceive.conn, {
-                        type: Types.EndCall, sessionId: data.sessionId
+                        type: Types.StartSession,
+                        sessionId: currentUser.sessionId,
+                        target: userToReceive.sessionId
+                    })
+                    break
+                case Types.SessionMeta :
+                    if (userToReceive) sendToConnection(userToReceive.conn, {
+                        type: Types.SessionMeta,
+                        sessionId: currentUser.sessionId,
+                        target: userToReceive.sessionId,
+                        data: payload.data
+                    })
+                    break
+                case Types.EndSession:
+                    if (userToReceive) sendToConnection(userToReceive.conn, {
+                        type: Types.EndSession, 
+                        sessionId: currentUser.sessionId,
+                        target: userToReceive.sessionId
                     })
                     break
             }
@@ -94,7 +117,6 @@ webSocket.on('request', (req) => {
         })
     })
 });
-
 const sendToConnection = (connection, message) => {
     connection.send(JSON.stringify(message))
 }
