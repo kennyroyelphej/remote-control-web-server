@@ -30,6 +30,7 @@ app.use((req, res, next) => {
 })
 
 const server = http.createServer(app);
+
 server.listen(PORT, () => {
     console.log('Server listening on port ' + PORT);
 });
@@ -38,6 +39,7 @@ const webSocket = new socket({
     httpServer: server, 
     autoAcceptConnections: false
 });
+
 webSocket.on('request', (req) => {
     const connection = req.accept();
     connection.on('message', (message) => {
@@ -98,6 +100,7 @@ webSocket.on('request', (req) => {
 const sendToConnection = (connection, message) => {
     connection.send(JSON.stringify(message))
 }
+
 const findUser = sessionId => {
     for (let i = 0; i < users.length; i++) {
         if (users[i].sessionId === sessionId) return users[i]
