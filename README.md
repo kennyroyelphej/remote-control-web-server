@@ -7,7 +7,7 @@ $ npm install
 ```
 
 ## Configuration
-Update private IP in /public/session.html line 20
+Update private IP in /public/session.html
 
 ## Running the app
 

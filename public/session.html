@@ -20,7 +20,6 @@
     const webSocket = new WebSocket('ws://192.168.1.12:3000');
     const peerConnection = new RTCPeerConnection({
         iceServers: [
-            // { urls: 'stun:stun.l.google.com:19302' },
             {
                 urls: "stun:stun.relay.metered.ca:80",
             },
@@ -102,7 +101,6 @@
         )
     }
     function handleIceCandidates(iceCandidates) {
-        console.log(iceCandidates)
         const iceCandidate = JSON.parse(iceCandidates.data)
         peerConnection.addIceCandidate(new RTCIceCandidate({
             candidate: iceCandidate.sdp,
